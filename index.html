@@ -544,18 +544,52 @@ function arrowSvg() {
   return `<svg class="dl-arrow" width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
-// ─── Download trigger ────────────────────────────────────────────────────────
-function downloadFile(url, filename) {
-  // Пробуем через скрытый <a> с download-атрибутом
-  // Для кросс-доменных ресурсов откроем в новой вкладке как fallback
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+// ─── Download trigger (fetch → Blob → сохранить) ────────────────────────────
+// Используем allorigins.win как CORS-прокси для обхода блокировок браузера
+async function downloadFile(url, filename, btnEl) {
+  if (btnEl) {
+    btnEl.disabled = true;
+    const nameEl = btnEl.querySelector('.dl-name');
+    btnEl._origName = nameEl.textContent;
+    nameEl.textContent = 'Скачиваем…';
+  }
+
+  try {
+    // Сначала пробуем напрямую (работает если сервер разрешает CORS)
+    let blob = null;
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      if (resp.ok) blob = await resp.blob();
+    } catch(_) {}
+
+    // Если не вышло — через allorigins прокси
+    if (!blob) {
+      const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const resp  = await fetch(proxy, { signal: AbortSignal.timeout(30000) });
+      if (!resp.ok) throw new Error(`proxy ${resp.status}`);
+      blob = await resp.blob();
+    }
+
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+  } catch(e) {
+    // Финальный fallback — открыть в новой вкладке, пусть пользователь сохранит вручную
+    alert('Авто-скачивание не удалось. Открываем видео в новой вкладке — нажми «Сохранить видео» (ПКМ или долгий тап).');
+    window.open(url, '_blank', 'noopener');
+  } finally {
+    if (btnEl) {
+      btnEl.disabled = false;
+      const nameEl = btnEl.querySelector('.dl-name');
+      if (btnEl._origName) nameEl.textContent = btnEl._origName;
+    }
+  }
 }
 
 // ─── Main fetch ──────────────────────────────────────────────────────────────
@@ -628,7 +662,7 @@ function renderResult(r) {
 
   // Download buttons
   $('dlButtons').innerHTML = r.downloads.map((dl, i) => `
-    <button class="dl-btn" onclick="downloadFile(${JSON.stringify(dl.url)}, 'tiktok_${i+1}.${dl.icon === 'audio' ? 'mp3' : 'mp4'}')">
+    <button class="dl-btn" onclick="downloadFile(${JSON.stringify(dl.url)}, 'tiktok_${i+1}.${dl.icon === 'audio' ? 'mp3' : 'mp4'}', this)">
       <div class="dl-btn-left">
         <div class="dl-icon ${dl.icon}">${iconSvg(dl.icon)}</div>
         <div class="dl-info">

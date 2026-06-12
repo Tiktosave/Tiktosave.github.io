@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikSave — скачать TikTok без водяного знака</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #13131a;
+    --card:     #1c1c28;
+    --border:   #2a2a3d;
+    --accent:   #fe2c55;
+    --accent2:  #25f4ee;
+    --text:     #f0f0f5;
+    --muted:    #7a7a9a;
+    --success:  #22c55e;
+    --radius:   16px;
+  }
+
+  html, body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 16px 60px;
+  }
+
+  /* ─── Background glow ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 10%, rgba(254,44,85,.12) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 35% at 80% 80%, rgba(37,244,238,.09) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap { position: relative; z-index: 1; width: 100%; max-width: 680px; }
+
+  /* ─── Header ─── */
+  header {
+    text-align: center;
+    padding: 56px 0 40px;
+  }
+
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .logo-icon {
+    width: 44px; height: 44px;
+    background: var(--accent);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 28px rgba(254,44,85,.45);
+    font-size: 22px;
+  }
+
+  .logo-text {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text span { color: var(--accent); }
+
+  header p {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  /* ─── Input card ─── */
+  .input-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: 0 8px 40px rgba(0,0,0,.45);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .url-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 15px;
+    font-family: inherit;
+    padding: 14px 16px;
+    outline: none;
+    transition: border-color .2s;
+    min-width: 0;
+  }
+
+  .url-input::placeholder { color: var(--muted); }
+
+  .url-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(254,44,85,.15);
+  }
+
+  .btn-fetch {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    padding: 14px 24px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity .15s, transform .1s, box-shadow .2s;
+    box-shadow: 0 4px 20px rgba(254,44,85,.4);
+  }
+
+  .btn-fetch:hover:not(:disabled) { opacity: .88; box-shadow: 0 6px 28px rgba(254,44,85,.55); }
+  .btn-fetch:active:not(:disabled) { transform: scale(.97); }
+  .btn-fetch:disabled { opacity: .5; cursor: not-allowed; }
+
+  .hint {
+    margin-top: 12px;
+    font-size: 12.5px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .hint svg { flex-shrink: 0; opacity: .6; }
+
+  /* ─── Status ─── */
+  .status-box {
+    margin-top: 16px;
+    padding: 13px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .status-box.loading {
+    display: flex;
+    background: rgba(37,244,238,.08);
+    border: 1px solid rgba(37,244,238,.2);
+    color: var(--accent2);
+  }
+
+  .status-box.error {
+    display: flex;
+    background: rgba(254,44,85,.08);
+    border: 1px solid rgba(254,44,85,.2);
+    color: #ff6b85;
+  }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2.5px solid rgba(37,244,238,.3);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ─── Result card ─── */
+  .result-card {
+    margin-top: 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    animation: slideUp .3s ease;
+    display: none;
+  }
+
+  .result-card.visible { display: block; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-top {
+    display: flex;
+    gap: 16px;
+    padding: 20px;
+    align-items: flex-start;
+  }
+
+  .thumb-wrap {
+    position: relative;
+    flex-shrink: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    width: 100px;
+    height: 140px;
+    background: var(--surface);
+  }
+
+  .thumb-wrap img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .play-badge {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.32);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .play-badge svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+
+  .meta { flex: 1; min-width: 0; }
+
+  .meta-author {
+    font-size: 13px;
+    color: var(--accent2);
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .meta-title {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .meta-stats {
+    display: flex;
+    gap: 14px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0 20px;
+  }
+
+  /* ─── Download buttons ─── */
+  .dl-section { padding: 20px; }
+
+  .dl-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .dl-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .dl-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 16px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color .18s, background .18s, transform .1s;
+    gap: 12px;
+  }
+
+  .dl-btn:hover { border-color: var(--accent); background: rgba(254,44,85,.05); transform: translateX(2px); }
+  .dl-btn:active { transform: scale(.98); }
+
+  .dl-btn-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dl-icon {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .dl-icon.hd { background: rgba(254,44,85,.15); color: var(--accent); }
+  .dl-icon.audio { background: rgba(37,244,238,.12); color: var(--accent2); }
+
+  .dl-info { text-align: left; }
+
+  .dl-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .dl-desc {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .dl-arrow {
+    color: var(--muted);
+    flex-shrink: 0;
+    transition: color .18s, transform .18s;
+  }
+
+  .dl-btn:hover .dl-arrow { color: var(--accent); transform: translateX(3px); }
+
+  /* ─── No-watermark badge ─── */
+  .nw-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(34,197,94,.12);
+    color: var(--success);
+    border: 1px solid rgba(34,197,94,.25);
+    border-radius: 20px;
+    padding: 3px 9px;
+    margin-top: 10px;
+  }
+
+  /* ─── Footer ─── */
+  footer {
+    margin-top: 40px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+
+  footer a { color: var(--muted); }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 500px) {
+    .input-row { flex-direction: column; }
+    .btn-fetch { width: 100%; }
+    header { padding: 36px 0 28px; }
+    .result-top { flex-direction: column; }
+    .thumb-wrap { width: 100%; height: 200px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">▶</div>
+      <div class="logo-text">Tik<span>Save</span></div>
+    </div>
+    <p>Вставь ссылку на любое видео TikTok — скачаем в лучшем качестве, без водяного знака, мгновенно.</p>
+  </header>
+
+  <div class="input-card">
+    <div class="input-row">
+      <input
+        class="url-input"
+        id="urlInput"
+        type="url"
+        placeholder="https://www.tiktok.com/@user/video/..."
+        autocomplete="off"
+        spellcheck="false"
+      >
+      <button class="btn-fetch" id="fetchBtn" onclick="fetchVideo()">Скачать</button>
+    </div>
+
+    <div class="hint">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      Поддерживаются ссылки вида tiktok.com/@.../video/..., vm.tiktok.com, vt.tiktok.com
+    </div>
+
+    <div class="status-box" id="statusBox">
+      <div class="spinner" id="statusSpinner"></div>
+      <span id="statusText">Получаем информацию о видео…</span>
+    </div>
+  </div>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-top">
+      <div class="thumb-wrap">
+        <img id="thumbnail" src="" alt="thumbnail">
+        <div class="play-badge">
+          <svg width="32" height="32" fill="none" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="12" fill="rgba(0,0,0,.4)"/>
+            <path d="M10 8l6 4-6 4V8z" fill="#fff"/>
+          </svg>
+        </div>
+      </div>
+      <div class="meta">
+        <div class="meta-author" id="metaAuthor">
+          <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm0 3a3 3 0 110 6 3 3 0 010-6zm0 14.2a7.2 7.2 0 01-6-3.22c.03-2 4-3.1 6-3.1s5.97 1.1 6 3.1a7.2 7.2 0 01-6 3.22z"/></svg>
+          <span id="authorName"></span>
+        </div>
+        <div class="meta-title" id="metaTitle"></div>
+        <div class="meta-stats" id="metaStats"></div>
+        <span class="nw-badge">
+          <svg width="11" height="11" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+          Без водяного знака
+        </span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="dl-section">
+      <div class="dl-label">Выбери формат</div>
+      <div class="dl-buttons" id="dlButtons"></div>
+    </div>
+  </div>
+
+  <footer>
+    Только для личного использования. Уважай авторские права.<br>
+    TikTok® — торговая марка ByteDance Ltd.
+  </footer>
+
+</div>
+
+<script>
+// ─── API endpoints (публичные, без ключа) ───────────────────────────────────
+// Используем несколько источников с fallback
+const APIS = [
+  {
+    name: 'tikwm',
+    url: (link) => `https://www.tikwm.com/api/?url=${encodeURIComponent(link)}&hd=1`,
+    parse: (d) => {
+      if (!d.data) throw new Error('no data');
+      const v = d.data;
+      return {
+        author:    v.author?.nickname || v.author?.unique_id || 'TikTok',
+        title:     v.title || '',
+        thumbnail: v.cover || v.origin_cover || '',
+        plays:     v.play_count,
+        likes:     v.digg_count,
+        downloads: [
+          { label: 'Видео HD', desc: 'Лучшее качество, без водяного знака', url: v.hdplay || v.play, icon: 'hd' },
+          { label: 'Видео SD', desc: 'Стандартное качество, без водяного знака', url: v.play, icon: 'hd' },
+          { label: 'Только аудио (MP3)', desc: 'Музыкальная дорожка', url: v.music, icon: 'audio' },
+        ].filter(d => d.url),
+      };
+    }
+  },
+  {
+    name: 'sssstik',
+    // fallback через публичный прокси
+    url: (link) => `https://api.tikmate.app/api/lookup?url=${encodeURIComponent(link)}`,
+    parse: (d) => {
+      if (!d.token) throw new Error('no token');
+      const base = `https://tikmate.app/download/${d.token}`;
+      return {
+        author:    d.author_name || 'TikTok',
+        title:     d.desc || '',
+        thumbnail: d.thumbnail || '',
+        plays:     null,
+        likes:     null,
+        downloads: [
+          { label: 'Видео без водяного знака', desc: 'MP4, лучшее качество', url: `${base}/1`, icon: 'hd' },
+          { label: 'Только аудио (MP3)',       desc: 'Музыкальная дорожка',  url: `${base}/2`, icon: 'audio' },
+        ],
+      };
+    }
+  }
+];
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function fmt(n) {
+  if (!n && n !== 0) return null;
+  if (n >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(1) + 'K';
+  return n.toString();
+}
+
+function setStatus(type, msg) {
+  const box = $('statusBox');
+  box.className = 'status-box ' + type;
+  $('statusText').textContent = msg;
+  $('statusSpinner').style.display = type === 'loading' ? 'block' : 'none';
+}
+
+function hideStatus() {
+  $('statusBox').className = 'status-box';
+}
+
+function isValidTikTok(url) {
+  return /tiktok\.com\/.+|vm\.tiktok\.com\/.+|vt\.tiktok\.com\/.+/i.test(url);
+}
+
+function iconSvg(type) {
+  if (type === 'hd') return `<svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm2 5v6h2v-2h2v2h2V9h-2v2H8V9H6zm9 0v6h3a1.5 1.5 0 000-3h-1V9h-2zm1 4h1a.5.5 0 010-1h-1v1z"/></svg>`;
+  return `<svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3a9 9 0 100 18A9 9 0 0012 3zm-1 4h2v5.27l3.15 1.82-1 1.73L11 13.7V7z"/></svg>`;
+}
+
+function arrowSvg() {
+  return `<svg class="dl-arrow" width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+// ─── Download trigger ────────────────────────────────────────────────────────
+function downloadFile(url, filename) {
+  // Пробуем через скрытый <a> с download-атрибутом
+  // Для кросс-доменных ресурсов откроем в новой вкладке как fallback
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ─── Main fetch ──────────────────────────────────────────────────────────────
+async function fetchVideo() {
+  const raw = $('urlInput').value.trim();
+
+  if (!raw) { setStatus('error', 'Вставь ссылку на видео TikTok'); return; }
+  if (!isValidTikTok(raw)) { setStatus('error', 'Похоже, это не TikTok-ссылка. Проверь формат.'); return; }
+
+  $('fetchBtn').disabled = true;
+  $('resultCard').classList.remove('visible');
+  setStatus('loading', 'Получаем информацию о видео…');
+
+  let result = null;
+  let lastErr = '';
+
+  for (const api of APIS) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      let resp;
+      try {
+        resp = await fetch(api.url(raw), {
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const json = await resp.json();
+      result = api.parse(json);
+      break;
+    } catch(e) {
+      lastErr = e.message;
+      console.warn(`[${api.name}] failed:`, e.message);
+    }
+  }
+
+  $('fetchBtn').disabled = false;
+
+  if (!result) {
+    setStatus('error', `Не удалось получить видео. Проверь ссылку или попробуй позже. (${lastErr})`);
+    return;
+  }
+
+  hideStatus();
+  renderResult(result);
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function renderResult(r) {
+  // Thumbnail
+  if (r.thumbnail) {
+    $('thumbnail').src = r.thumbnail;
+    $('thumbnail').onerror = () => { $('thumbnail').style.display = 'none'; };
+  }
+
+  // Author & title
+  $('authorName').textContent = '@' + r.author;
+  $('metaTitle').textContent = r.title || 'Без описания';
+
+  // Stats
+  const stats = [];
+  if (fmt(r.plays))  stats.push(['▶', fmt(r.plays) + ' просмотров']);
+  if (fmt(r.likes))  stats.push(['♥', fmt(r.likes) + ' лайков']);
+  $('metaStats').innerHTML = stats.map(([icon,label]) =>
+    `<span class="stat">${icon} ${label}</span>`
+  ).join('');
+
+  // Download buttons
+  $('dlButtons').innerHTML = r.downloads.map((dl, i) => `
+    <button class="dl-btn" onclick="downloadFile(${JSON.stringify(dl.url)}, 'tiktok_${i+1}.${dl.icon === 'audio' ? 'mp3' : 'mp4'}')">
+      <div class="dl-btn-left">
+        <div class="dl-icon ${dl.icon}">${iconSvg(dl.icon)}</div>
+        <div class="dl-info">
+          <div class="dl-name">${dl.label}</div>
+          <div class="dl-desc">${dl.desc}</div>
+        </div>
+      </div>
+      ${arrowSvg()}
+    </button>
+  `).join('');
+
+  $('resultCard').classList.add('visible');
+}
+
+// ─── Enter key support ───────────────────────────────────────────────────────
+$('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') fetchVideo();
+});
+
+// ─── Paste & auto-fetch ──────────────────────────────────────────────────────
+$('urlInput').addEventListener('paste', () => {
+  setTimeout(() => {
+    if (isValidTikTok($('urlInput').value.trim())) fetchVideo();
+  }, 50);
+});
+</script>
+</body>
+</html>

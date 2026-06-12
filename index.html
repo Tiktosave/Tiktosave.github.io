@@ -220,6 +220,7 @@
     width: 100px;
     height: 140px;
     background: var(--surface);
+    cursor: pointer;
   }
 
   .thumb-wrap img {
@@ -233,7 +234,10 @@
     inset: 0;
     background: rgba(0,0,0,.32);
     display: flex; align-items: center; justify-content: center;
+    transition: background .15s;
   }
+
+  .thumb-wrap:hover .play-badge { background: rgba(0,0,0,.5); }
 
   .play-badge svg { filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
 
@@ -280,6 +284,21 @@
     margin: 0 20px;
   }
 
+  /* ─── No-watermark badge ─── */
+  .nw-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(34,197,94,.12);
+    color: var(--success);
+    border: 1px solid rgba(34,197,94,.25);
+    border-radius: 20px;
+    padding: 3px 9px;
+    margin-top: 10px;
+  }
+
   /* ─── Download buttons ─── */
   .dl-section { padding: 20px; }
 
@@ -302,6 +321,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    width: 100%;
     padding: 13px 16px;
     border-radius: 12px;
     border: 1.5px solid var(--border);
@@ -310,15 +330,19 @@
     text-decoration: none;
     transition: border-color .18s, background .18s, transform .1s;
     gap: 12px;
+    font-family: inherit;
+    text-align: left;
   }
 
-  .dl-btn:hover { border-color: var(--accent); background: rgba(254,44,85,.05); transform: translateX(2px); }
-  .dl-btn:active { transform: scale(.98); }
+  .dl-btn:hover:not(:disabled) { border-color: var(--accent); background: rgba(254,44,85,.05); transform: translateX(2px); }
+  .dl-btn:active:not(:disabled) { transform: scale(.98); }
+  .dl-btn:disabled { opacity: .6; cursor: wait; transform: none; }
 
   .dl-btn-left {
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
   }
 
   .dl-icon {
@@ -331,7 +355,7 @@
   .dl-icon.hd { background: rgba(254,44,85,.15); color: var(--accent); }
   .dl-icon.audio { background: rgba(37,244,238,.12); color: var(--accent2); }
 
-  .dl-info { text-align: left; }
+  .dl-info { text-align: left; min-width: 0; }
 
   .dl-name {
     font-size: 14px;
@@ -351,22 +375,73 @@
     transition: color .18s, transform .18s;
   }
 
-  .dl-btn:hover .dl-arrow { color: var(--accent); transform: translateX(3px); }
+  .dl-btn:hover:not(:disabled) .dl-arrow { color: var(--accent); transform: translateX(3px); }
 
-  /* ─── No-watermark badge ─── */
-  .nw-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 600;
-    background: rgba(34,197,94,.12);
-    color: var(--success);
-    border: 1px solid rgba(34,197,94,.25);
-    border-radius: 20px;
-    padding: 3px 9px;
-    margin-top: 10px;
+  .dl-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(37,244,238,.3);
+    border-top-color: var(--accent2);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
   }
+
+  /* ─── Preview modal ─── */
+  .video-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .video-modal.visible { display: flex; }
+
+  .video-modal-inner {
+    position: relative;
+    max-width: 92vw;
+    max-height: 92vh;
+  }
+
+  .video-modal-inner video {
+    max-width: 92vw;
+    max-height: 92vh;
+    border-radius: 12px;
+    display: block;
+    background: #000;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: -42px;
+    right: 0;
+    width: 36px; height: 36px;
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+
+  .modal-close:hover { border-color: var(--accent); color: var(--accent); }
+
+  .modal-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent2);
+    font-size: 14px;
+    gap: 10px;
+  }
+
+  .modal-loading.hidden { display: none; }
 
   /* ─── Footer ─── */
   footer {
@@ -426,7 +501,7 @@
 
   <div class="result-card" id="resultCard">
     <div class="result-top">
-      <div class="thumb-wrap">
+      <div class="thumb-wrap" id="thumbWrap" title="Нажми, чтобы посмотреть видео">
         <img id="thumbnail" src="" alt="thumbnail">
         <div class="play-badge">
           <svg width="32" height="32" fill="none" viewBox="0 0 24 24">
@@ -462,6 +537,18 @@
     TikTok® — торговая марка ByteDance Ltd.
   </footer>
 
+</div>
+
+<!-- Preview modal -->
+<div class="video-modal" id="videoModal" onclick="if(event.target===this)closeModal()">
+  <div class="video-modal-inner">
+    <video id="previewVideo" controls playsinline></video>
+    <div class="modal-loading" id="modalLoading">
+      <div class="spinner"></div>
+      <span>Загружаем превью…</span>
+    </div>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
 </div>
 
 <script>
@@ -544,31 +631,99 @@ function arrowSvg() {
   return `<svg class="dl-arrow" width="18" height="18" fill="none" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
-// ─── Download trigger (fetch → Blob → сохранить) ────────────────────────────
-// Используем allorigins.win как CORS-прокси для обхода блокировок браузера
-async function downloadFile(url, filename, btnEl) {
-  if (btnEl) {
-    btnEl.disabled = true;
-    const nameEl = btnEl.querySelector('.dl-name');
-    btnEl._origName = nameEl.textContent;
-    nameEl.textContent = 'Скачиваем…';
+// ─── Video preview modal ─────────────────────────────────────────────────────
+let currentPreviewUrl = null;
+
+function openPreview(url) {
+  if (!url) {
+    alert('Превью недоступно для этого видео.');
+    return;
   }
+  currentPreviewUrl = url;
+  const v = $('previewVideo');
+  const loading = $('modalLoading');
+
+  loading.classList.remove('hidden');
+  v.style.visibility = 'hidden';
+  v.pause();
+  v.removeAttribute('src');
+  v.load();
+
+  v.src = url;
+  v.onloadeddata = () => {
+    loading.classList.add('hidden');
+    v.style.visibility = 'visible';
+    v.play().catch(() => {});
+  };
+  v.onerror = () => {
+    loading.innerHTML = `<span>Не удалось загрузить превью. Попробуй открыть видео отдельно.</span>`;
+  };
+
+  $('videoModal').classList.add('visible');
+}
+
+function closeModal() {
+  const v = $('previewVideo');
+  v.pause();
+  v.removeAttribute('src');
+  v.load();
+  $('videoModal').classList.remove('visible');
+}
+
+// Закрытие по Esc
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && $('videoModal').classList.contains('visible')) closeModal();
+});
+
+// ─── Download trigger (fetch → Blob → сохранить) ────────────────────────────
+// Используем allorigins.win как CORS-прокси для обхода блокировок браузера.
+// Каждый шаг отображается в кнопке, чтобы было понятно, что происходит.
+async function downloadFile(url, filename, btnEl) {
+  const nameEl = btnEl.querySelector('.dl-name');
+  const descEl = btnEl.querySelector('.dl-desc');
+  const arrowEl = btnEl.querySelector('.dl-arrow');
+  const origName = nameEl.textContent;
+  const origDesc = descEl.textContent;
+
+  btnEl.disabled = true;
+  arrowEl.outerHTML = '<div class="dl-spinner"></div>';
+
+  const setProgress = (label, desc) => {
+    nameEl.textContent = label;
+    if (desc !== undefined) descEl.textContent = desc;
+  };
+
+  const restore = (finalName, finalDesc, delay = 1800) => {
+    setProgress(finalName, finalDesc);
+    setTimeout(() => {
+      nameEl.textContent = origName;
+      descEl.textContent = origDesc;
+      const spinner = btnEl.querySelector('.dl-spinner');
+      if (spinner) spinner.outerHTML = arrowSvg();
+      btnEl.disabled = false;
+    }, delay);
+  };
 
   try {
-    // Сначала пробуем напрямую (работает если сервер разрешает CORS)
+    setProgress('Скачиваем…', 'Запрашиваем файл напрямую');
+
     let blob = null;
     try {
-      const resp = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
       if (resp.ok) blob = await resp.blob();
     } catch(_) {}
 
-    // Если не вышло — через allorigins прокси
     if (!blob) {
+      setProgress('Скачиваем…', 'Прямой запрос не сработал, пробуем через прокси');
       const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-      const resp  = await fetch(proxy, { signal: AbortSignal.timeout(30000) });
+      const resp = await fetch(proxy, { signal: AbortSignal.timeout(25000) });
       if (!resp.ok) throw new Error(`proxy ${resp.status}`);
       blob = await resp.blob();
     }
+
+    if (!blob || blob.size === 0) throw new Error('empty file');
+
+    setProgress('Сохраняем файл…', `${(blob.size/1e6).toFixed(1)} МБ`);
 
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -579,16 +734,22 @@ async function downloadFile(url, filename, btnEl) {
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
+    restore('✓ Скачано', 'Файл сохранён в загрузки');
+
   } catch(e) {
-    // Финальный fallback — открыть в новой вкладке, пусть пользователь сохранит вручную
-    alert('Авто-скачивание не удалось. Открываем видео в новой вкладке — нажми «Сохранить видео» (ПКМ или долгий тап).');
-    window.open(url, '_blank', 'noopener');
-  } finally {
-    if (btnEl) {
-      btnEl.disabled = false;
-      const nameEl = btnEl.querySelector('.dl-name');
-      if (btnEl._origName) nameEl.textContent = btnEl._origName;
-    }
+    console.error('download failed:', e);
+    setProgress('Не получилось скачать', 'Открываем видео в новой вкладке…');
+
+    const win = window.open(url, '_blank', 'noopener');
+
+    setTimeout(() => {
+      if (!win || win.closed) {
+        restore('Браузер заблокировал открытие', 'Скопируй ссылку из консоли (F12) и открой вручную', 3500);
+        console.log('Прямая ссылка на видео:', url);
+      } else {
+        restore('Открыто в новой вкладке', 'Нажми «Сохранить как», чтобы скачать');
+      }
+    }, 400);
   }
 }
 
@@ -644,6 +805,7 @@ async function fetchVideo() {
 function renderResult(r) {
   // Thumbnail
   if (r.thumbnail) {
+    $('thumbnail').style.display = '';
     $('thumbnail').src = r.thumbnail;
     $('thumbnail').onerror = () => { $('thumbnail').style.display = 'none'; };
   }
@@ -660,9 +822,13 @@ function renderResult(r) {
     `<span class="stat">${icon} ${label}</span>`
   ).join('');
 
+  // Превью: открываем видео без водяного знака по клику на миниатюру
+  const previewUrl = (r.downloads.find(d => d.icon === 'hd') || r.downloads[0])?.url || null;
+  $('thumbWrap').onclick = () => openPreview(previewUrl);
+
   // Download buttons
   $('dlButtons').innerHTML = r.downloads.map((dl, i) => `
-    <button class="dl-btn" onclick="downloadFile(${JSON.stringify(dl.url)}, 'tiktok_${i+1}.${dl.icon === 'audio' ? 'mp3' : 'mp4'}', this)">
+    <button class="dl-btn" type="button" onclick="downloadFile(${JSON.stringify(dl.url)}, 'tiktok_${i+1}.${dl.icon === 'audio' ? 'mp3' : 'mp4'}', this)">
       <div class="dl-btn-left">
         <div class="dl-icon ${dl.icon}">${iconSvg(dl.icon)}</div>
         <div class="dl-info">
